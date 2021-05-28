@@ -20,8 +20,8 @@ def on_message(client, userdata, msg):
     logger.info(f"Topic: {msg.topic}\tQoS: {msg.qos}\tPayload: {str(msg.payload.decode())}")
     data += [msg.timestamp, msg.topic, msg.qos, str(msg.payload.decode())],
 
-# def on_publish(client, obj, mid):
-#     logger.info(f"Published: {mid}")
+def on_publish(client, obj, mid):
+    logger.info(f"Published: {mid}")
 
 def on_subscribe(client, obj, mid, granted_qos):
     logger.info(f"Subscribed: {mid}\tQoS={granted_qos}")
@@ -34,7 +34,7 @@ client = mqtt.Client(client_id="3310-analyzer")
 client.username_pw_set(username=credentials["username"], password=credentials["password"])
 client.on_connect = on_connect
 client.on_message = on_message
-# client.on_publish = on_publish
+client.on_publish = on_publish
 client.on_subscribe = on_subscribe
 # client.on_log=on_log
 # client.enable_logger(logging.getLogger(__name__))
