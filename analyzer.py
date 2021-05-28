@@ -46,10 +46,10 @@ qos = [0, 1, 2]
 last_topic = None
 data = []
 
-for interval in intervals:
+for interval in intervals[::-1]:
     for q in qos:
         if last_topic is not None:
-            print(f"@@@@@@@@@@@@@@@@@@@@@@@@@@@@ {last_topic}")
+            logger.info(f"Unsubscribed: {last_topic}")
             client.unsubscribe(last_topic)
         print("Data points collected:", len(data))
 
