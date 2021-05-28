@@ -21,7 +21,7 @@ def on_connect(client, userdata, flags, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    logger.info(f"Topic: {msg.topic}\n\tQoS: {msg.qos}\n\tPayload: {str(msg.payload.decode())}")
+    logger.info(f"Topic: {msg.topic}\tQoS: {msg.qos}\tPayload: {str(msg.payload.decode())}")
     # msg methods = 'dup', 'info', 'mid', 'payload', 'properties', 'qos', 'retain', 'state', 'timestamp', 'topic'
     global DELAY, QOS
     if msg.topic == "request/qos":
@@ -74,7 +74,9 @@ QOS = 0
 intervals = [0, 0.01, 0.02, 0.05, 0.1, 0.5]
 intervals_ms = [10, 20, 50, 100, 500]
 DELAY = intervals[-1]
+counter = 0
 
 while True:
-    client.publish(f"counter/{QOS}/{int(DELAY * 1000)}", qos=QOS, payload="hello world test")
+    client.publish(f"counter/{QOS}/{int(DELAY * 1000)}", qos=QOS, payload=str(counter))
+    counter += 1
     time.sleep(DELAY)
