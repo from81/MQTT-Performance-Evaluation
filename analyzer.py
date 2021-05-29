@@ -79,23 +79,3 @@ for interval in intervals:
 client.loop_stop()
 df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
 df.to_csv('stats.csv', index=False)
-
-# intervals = [0, 10, 20, 50, 100, 500]
-# qos = int(sys.argv[1])
-# interval = int(sys.argv[2])
-# assert interval in intervals
-#
-# data = []
-# topic = f"counter/{qos}/{interval}"
-# client.subscribe(topic, qos=qos)
-# client.publish("request/qos", payload=qos, qos=1)
-# client.publish("request/delay", payload=interval, qos=1)
-# client.loop_start()
-#
-# while len(data) < 1000:
-#     1 + 1
-#
-# client.loop_stop()
-# print("Data points collected:", len(data))
-# df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
-# df.to_csv(f'stats_{qos}_{interval}.csv', index=False)
