@@ -1,7 +1,8 @@
 import json
 import logging
+import time
 
-import paho.mqtt.client as mqtt
+from paho.mqtt.client import Client
 import pandas as pd
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -17,7 +18,7 @@ def on_connect(client, userdata, flags, rc):
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
     global data
-    logger.info(f"Topic: {msg.topic}\tQoS: {msg.qos}\tPayload: {str(msg.payload.decode())}")
+    logger.info(f"Topic: {msg.topic}\tQoS: {msg.qos}\tPayload: {str(msg.payload.decode())}\tData points: {len(data)}")
     data += [msg.timestamp, msg.topic, msg.qos, str(msg.payload.decode())],
 
 def on_publish(client, obj, mid):
@@ -26,20 +27,20 @@ def on_publish(client, obj, mid):
 def on_subscribe(client, obj, mid, granted_qos):
     logger.info(f"Subscribed: {mid}\tQoS={granted_qos}")
 
-# def on_log(client, userdata, level, buf):
-#     logger.warning(f"Log: {buf}")
+def on_log(client, userdata, level, buf):
+    logger.warning(f"Log: {buf}")
+
 
 # Client(client_id=””, clean_session=True, userdata=None, protocol=MQTTv311, transport=”tcp”)
-client = mqtt.Client(client_id="3310-analyzer")
+client = Client(client_id="3310-analyzer", protocol=MQTTv31)
 client.username_pw_set(username=credentials["username"], password=credentials["password"])
 client.on_connect = on_connect
 client.on_message = on_message
 client.on_publish = on_publish
 client.on_subscribe = on_subscribe
-# client.on_log=on_log
-# client.enable_logger(logging.getLogger(__name__))
-client.connect(host="54.252.164.226", port=1883, keepalive=60)
-client.loop_start()
+client.on_log = on_log
+
+client.connect(host=credentials["ec2_host"], port=1883, keepalive=60)
 
 intervals = [0, 0.01, 0.02, 0.05, 0.1, 0.5]
 qos = [0, 1, 2]
@@ -48,21 +49,53 @@ data = []
 
 for interval in intervals[::-1]:
     for q in qos:
+        topic = f"counter/{q}/{int(interval * 1000)}"
+        client.subscribe(topic, qos=q)
+
+client.loop_start()
+
+for interval in intervals:
+    for q in qos:
         if last_topic is not None:
             logger.info(f"Unsubscribed: {last_topic}")
             client.unsubscribe(last_topic)
-        print("Data points collected:", len(data))
-
+        time.sleep(1)
         current_len = len(data)
         topic = f"counter/{q}/{int(interval * 1000)}"
-        client.subscribe(topic, qos=q)
-        client.publish("request/qos", payload=q)
-        client.publish("request/delay", payload=int(interval * 1000))
+        client.publish("request/qos", payload=q, qos=1)
+        time.sleep(0.5)
+        client.publish("request/delay", payload=int(interval * 1000), qos=1)
         last_topic = topic
 
+        counter = 0
         while len(data) < current_len + 1000:
-            1 + 1
+            counter += 1
+            if counter >= 500 and len(data) == current_len:
+                client.publish("request/qos", payload=q, qos=1)
+                time.sleep(0.5)
+                client.publish("request/delay", payload=int(interval * 1000), qos=1)
+
 
 client.loop_stop()
 df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
 df.to_csv('stats.csv', index=False)
+
+# intervals = [0, 10, 20, 50, 100, 500]
+# qos = int(sys.argv[1])
+# interval = int(sys.argv[2])
+# assert interval in intervals
+#
+# data = []
+# topic = f"counter/{qos}/{interval}"
+# client.subscribe(topic, qos=qos)
+# client.publish("request/qos", payload=qos, qos=1)
+# client.publish("request/delay", payload=interval, qos=1)
+# client.loop_start()
+#
+# while len(data) < 1000:
+#     1 + 1
+#
+# client.loop_stop()
+# print("Data points collected:", len(data))
+# df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
+# df.to_csv(f'stats_{qos}_{interval}.csv', index=False)

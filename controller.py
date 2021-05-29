@@ -1,15 +1,21 @@
 import json
 import logging
+# from multiprocessing import Process
+import os
+import random
+from threading import Thread
 import time
 from typing import Dict
 
-from paho.mqtt.client import Client
+from paho.mqtt.client import Client, MQTTv31
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-with open("env.json") as f:
-    credentials = json.load(f)
+intervals = [0, 0.01, 0.02, 0.05, 0.1, 0.5]
+intervals_ms = [10, 20, 50, 100, 500]
+DELAY = intervals[-1]
+QOS = 0
 
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
@@ -23,8 +29,7 @@ def on_connect(client, userdata, flags, rc):
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
     logger.info(f"Topic: {msg.topic}\tQoS: {msg.qos}\tPayload: {str(msg.payload.decode())}")
-    # msg methods = 'dup', 'info', 'mid', 'payload', 'properties', 'qos', 'retain', 'state', 'timestamp', 'topic'
-    global DELAY, QOS
+    global DELAY, QOS, child_process, credentials
     if msg.topic == "request/qos":
         qos = int(msg.payload.decode())
         QOS = qos
@@ -35,11 +40,17 @@ def on_message(client, userdata, msg):
                 delay /= 1000
         except:
             delay = float(msg.payload.decode())
+
         if delay in intervals:
             DELAY = delay
 
-# def on_publish(client, obj, mid):
-#     logger.info(f"Published: {mid}")
+            # create a new publisher and attach it to the controller
+            p = Thread(target=create_publisher, kwargs={'qos':QOS, 'delay':DELAY, 'credentials':credentials})
+            p.start()
+            # p.join()
+
+def on_publish(client, obj, mid):
+    logger.info(f"Published: {mid}")
 
 def on_subscribe(client, obj, mid, granted_qos):
     logger.info(f"Subscribed: {mid}\tQoS={granted_qos}")
@@ -47,29 +58,41 @@ def on_subscribe(client, obj, mid, granted_qos):
 def on_log(client, userdata, level, buf):
     logger.warning(f"Log: {buf}")
 
-def create_client(id: int, credentials: Dict) -> Client:
-    client_id = f"3310-controller-{id}"
-    client = Client(client_id=client_id)
+def create_client(credentials: Dict) -> Client:
+    client = Client(client_id="3310-controller2", protocol=MQTTv31)
     client.username_pw_set(username=credentials["username"], password=credentials["password"])
     client.on_connect = on_connect
     client.on_message = on_message
-    # client.on_publish = on_publish
     client.on_subscribe = on_subscribe
     client.on_log=on_log
-    client.connect(host=credentials["ec2_host"], port=1883, keepalive=60)
+    client.connect(host=credentials["ec2_host"], port=1883, keepalive=1000)
     return client
 
-intervals = [0, 0.01, 0.02, 0.05, 0.1, 0.5]
-intervals_ms = [10, 20, 50, 100, 500]
-DELAY = intervals[-1]
-QOS = 0
-counter = 0
-clientID = 0
-client = create_client(clientID, credentials)
-logging.info(f"New client created\tQOS: {QOS}\tDelay: {DELAY}")
-client.loop_start()
+def create_publisher(qos, delay, credentials):
+    publisher_id = random.randint(0, 1000)
+    publisher = Client(client_id=f"3310-publisher-{publisher_id}", protocol=MQTTv31)
+    publisher.username_pw_set(username=credentials["username"], password=credentials["password"])
+    publisher.on_log = on_log
+    publisher.connect(host=credentials["ec2_host"], port=1883, keepalive=60)
+    logger.info(f'new publisher created with ID {publisher_id}')
+    publisher.loop_start()
+    time.sleep(1)
+    if delay <= 0.05:
+        n = 3000
+    else:
+        n = 1500
+    for i in range(n):
+        # print(f"counter/{qos}/{int(delay * 1000)} - {counter}")
+        mi = publisher.publish(f"counter/{qos}/{int(delay * 1000)}", qos=qos, payload=str(i))
+        mi.wait_for_publish()
+        time.sleep(delay)
+        i += 1
+    publisher.loop_stop()
 
-while True:
-    client.publish(f"counter/{QOS}/{int(DELAY * 1000)}", qos=QOS, payload=str(counter))
-    counter += 1
-    time.sleep(DELAY)
+
+with open("env.json") as f:
+    credentials = json.load(f)
+
+client = create_client(credentials)
+client.credentials = credentials
+client.loop_forever()
