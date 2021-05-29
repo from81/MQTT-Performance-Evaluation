@@ -2,7 +2,7 @@ import json
 import logging
 import time
 
-from paho.mqtt.client import Client
+from paho.mqtt.client import Client, MQTTv31
 import pandas as pd
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -47,6 +47,7 @@ qos = [0, 1, 2]
 last_topic = None
 data = []
 
+# subscribe to all counter topics in advance
 for interval in intervals[::-1]:
     for q in qos:
         topic = f"counter/{q}/{int(interval * 1000)}"
@@ -54,26 +55,30 @@ for interval in intervals[::-1]:
 
 client.loop_start()
 
-for interval in intervals:
+for interval in intervals[::-1]:
     for q in qos:
         if last_topic is not None:
+            # unsubscribe topics once enough data points are collected
             logger.info(f"Unsubscribed: {last_topic}")
             client.unsubscribe(last_topic)
+
         time.sleep(1)
         current_len = len(data)
-        topic = f"counter/{q}/{int(interval * 1000)}"
+
+        # request QOS and Delay change
         client.publish("request/qos", payload=q, qos=1)
         time.sleep(0.5)
         client.publish("request/delay", payload=int(interval * 1000), qos=1)
-        last_topic = topic
+        last_topic = f"counter/{q}/{int(interval * 1000)}"
 
+        # repeat until 1000 data points collected
         counter = 0
         while len(data) < current_len + 1000:
             counter += 1
-            if counter >= 500 and len(data) == current_len:
-                client.publish("request/qos", payload=q, qos=1)
-                time.sleep(0.5)
-                client.publish("request/delay", payload=int(interval * 1000), qos=1)
+            # if counter >= 500 and len(data) == current_len:
+            #     client.publish("request/qos", payload=q, qos=1)
+            #     client.publish("request/delay", payload=int(interval * 1000), qos=1)
+            #     time.sleep(0.5)
 
 
 client.loop_stop()

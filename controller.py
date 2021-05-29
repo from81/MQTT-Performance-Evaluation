@@ -81,7 +81,7 @@ def create_publisher(qos, delay, credentials):
     if delay <= 0.05:
         n = 3000
     else:
-        n = 1500
+        n = 1000
     for i in range(n):
         mi = publisher.publish(f"counter/{qos}/{int(delay * 1000)}", qos=qos, payload=str(i))
         mi.wait_for_publish()
