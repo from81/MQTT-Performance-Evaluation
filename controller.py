@@ -69,6 +69,7 @@ def create_client(credentials: Dict) -> Client:
     return client
 
 def create_publisher(qos, delay, credentials):
+    """creates a publisher client for sending counter messages"""
     publisher_id = random.randint(0, 1000)
     publisher = Client(client_id=f"3310-publisher-{publisher_id}", protocol=MQTTv31)
     publisher.username_pw_set(username=credentials["username"], password=credentials["password"])
@@ -82,7 +83,6 @@ def create_publisher(qos, delay, credentials):
     else:
         n = 1500
     for i in range(n):
-        # print(f"counter/{qos}/{int(delay * 1000)} - {counter}")
         mi = publisher.publish(f"counter/{qos}/{int(delay * 1000)}", qos=qos, payload=str(i))
         mi.wait_for_publish()
         time.sleep(delay)
