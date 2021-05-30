@@ -8,7 +8,7 @@ import pandas as pd
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-with open("env.json") as f:
+with open("env_partner.json") as f:
     credentials = json.load(f)
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -63,7 +63,6 @@ for interval in intervals[::-1]:
             client.unsubscribe(last_topic)
 
         time.sleep(1)
-        current_len = len(data)
 
         # request QOS and Delay change
         client.publish("request/qos", payload=q, qos=1)
@@ -71,16 +70,13 @@ for interval in intervals[::-1]:
         client.publish("request/delay", payload=int(interval * 1000), qos=1)
         last_topic = f"counter/{q}/{int(interval * 1000)}"
 
-        # repeat until 1000 data points collected
+        # collect data for 120s
+        current_time = time.time()
         counter = 0
-        while len(data) < current_len + 1000:
+        while time.time() - current_time <= 120:
             counter += 1
-            # if counter >= 500 and len(data) == current_len:
-            #     client.publish("request/qos", payload=q, qos=1)
-            #     client.publish("request/delay", payload=int(interval * 1000), qos=1)
-            #     time.sleep(0.5)
 
 
 client.loop_stop()
 df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
-df.to_csv('stats.csv', index=False)
+df.to_csv('stats_partner_broker.csv', index=False)

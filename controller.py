@@ -78,11 +78,10 @@ def create_publisher(qos, delay, credentials):
     logger.info(f'new publisher created with ID {publisher_id}')
     publisher.loop_start()
     time.sleep(1)
-    if delay <= 0.05:
-        n = 3000
-    else:
-        n = 1000
-    for i in range(n):
+
+    start_time = time.time()
+    i = 0
+    while time.time() - start_time <= 120:
         mi = publisher.publish(f"counter/{qos}/{int(delay * 1000)}", qos=qos, payload=str(i))
         mi.wait_for_publish()
         time.sleep(delay)
