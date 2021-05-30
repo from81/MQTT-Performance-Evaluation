@@ -53,9 +53,10 @@ for interval in intervals[::-1]:
         topic = f"counter/{q}/{int(interval * 1000)}"
         client.subscribe(topic, qos=q)
 
+client.subscribe("$SYS/#")
 client.loop_start()
 
-for interval in intervals[::-1]:
+for interval in intervals:
     for q in qos:
         if last_topic is not None:
             # unsubscribe topics once enough data points are collected
@@ -76,7 +77,8 @@ for interval in intervals[::-1]:
         while time.time() - current_time <= 120:
             counter += 1
 
-
+logger.info('DONE')
+client.unsubscribe("$SYS/#")
 client.loop_stop()
 df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
 df.to_csv('stats_partner_broker.csv', index=False)
