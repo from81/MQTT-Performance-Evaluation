@@ -18,7 +18,8 @@ def on_connect(client, userdata, flags, rc):
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
     global data
-    logger.info(f"Topic: {msg.topic}\tQoS: {msg.qos}\tPayload: {str(msg.payload.decode())}\tData points: {len(data)}")
+    if msg.topic.startswith('$SYS') == False:
+        logger.info(f"Topic: {msg.topic}\tQoS: {msg.qos}\tPayload: {str(msg.payload.decode())}\tData points: {len(data)}")
     data += [msg.timestamp, msg.topic, msg.qos, str(msg.payload.decode())],
 
 def on_publish(client, obj, mid):
@@ -56,8 +57,8 @@ for interval in intervals[::-1]:
 client.subscribe("$SYS/#")
 client.loop_start()
 
-for interval in intervals:
-    for q in qos:
+for q in qos[::-1]:
+    for interval in intervals[::-1]:
         if last_topic is not None:
             # unsubscribe topics once enough data points are collected
             logger.info(f"Unsubscribed: {last_topic}")
@@ -66,9 +67,9 @@ for interval in intervals:
         time.sleep(1)
 
         # request QOS and Delay change
-        client.publish("request/qos", payload=q, qos=1)
+        client.publish("request/qos", payload=q, qos=2)
         time.sleep(0.5)
-        client.publish("request/delay", payload=int(interval * 1000), qos=1)
+        client.publish("request/delay", payload=int(interval * 1000), qos=2)
         last_topic = f"counter/{q}/{int(interval * 1000)}"
 
         # collect data for 120s
@@ -81,4 +82,5 @@ logger.info('DONE')
 client.unsubscribe("$SYS/#")
 client.loop_stop()
 df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
+print(df.loc[df['topic'].str.startswith('$SYS') == False,'topic'].value_counts())
 df.to_csv('stats_partner_broker.csv', index=False)
