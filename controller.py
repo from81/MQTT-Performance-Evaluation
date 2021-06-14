@@ -1,9 +1,7 @@
+import asyncio
 import json
 import logging
-# from multiprocessing import Process
-import os
 import random
-from threading import Thread
 import time
 from typing import Dict
 
@@ -45,9 +43,10 @@ def on_message(client, userdata, msg):
             DELAY = delay
 
             # create a new publisher and attach it to the controller
-            p = Thread(target=create_publisher, kwargs={'qos':QOS, 'delay':DELAY, 'credentials':credentials})
-            p.start()
+            # p = Thread(target=create_publisher, kwargs={'qos':QOS, 'delay':DELAY, 'credentials':credentials})
+            # p.start()
             # p.join()
+            asyncio.run(create_publisher(qos=QOS, delay=DELAY, credentials=credentials))
 
 def on_publish(client, obj, mid):
     logger.info(f"Published: {mid}")
@@ -59,7 +58,7 @@ def on_log(client, userdata, level, buf):
     logger.warning(f"Log: {buf}")
 
 def create_client(credentials: Dict) -> Client:
-    client = Client(client_id="3310-controller2", protocol=MQTTv31)
+    client = Client(client_id="controller", protocol=MQTTv31)
     client.username_pw_set(username=credentials["username"], password=credentials["password"])
     client.on_connect = on_connect
     client.on_message = on_message
@@ -68,23 +67,26 @@ def create_client(credentials: Dict) -> Client:
     client.connect(host=credentials["ec2_host"], port=1883, keepalive=1000)
     return client
 
-def create_publisher(qos, delay, credentials):
+async def create_publisher(qos, delay, credentials):
     """creates a publisher client for sending counter messages"""
     publisher_id = random.randint(0, 1000)
-    publisher = Client(client_id=f"3310-publisher-{publisher_id}", protocol=MQTTv31)
+    publisher = Client(client_id=f"publisher-{publisher_id}", protocol=MQTTv31)
     publisher.username_pw_set(username=credentials["username"], password=credentials["password"])
     publisher.on_log = on_log
     publisher.connect(host=credentials["ec2_host"], port=1883, keepalive=60)
     logger.info(f'new publisher created with ID {publisher_id}')
     publisher.loop_start()
-    time.sleep(1)
+    await asyncio.sleep(1)
 
     start_time = time.time()
     i = 0
     while time.time() - start_time <= 120:
         mi = publisher.publish(f"counter/{qos}/{int(delay * 1000)}", qos=qos, payload=str(i))
         mi.wait_for_publish()
-        time.sleep(delay)
+        if delay == 0:
+            await asyncio.sleep(0.001)
+        else:
+            await asyncio.sleep(delay)
         i += 1
     publisher.loop_stop()
 

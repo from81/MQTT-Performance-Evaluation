@@ -8,7 +8,7 @@ import pandas as pd
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-with open("env_partner.json") as f:
+with open("env.json") as f:
     credentials = json.load(f)
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -33,7 +33,7 @@ def on_log(client, userdata, level, buf):
 
 
 # Client(client_id=””, clean_session=True, userdata=None, protocol=MQTTv311, transport=”tcp”)
-client = Client(client_id="3310-analyzer", protocol=MQTTv31)
+client = Client(client_id="analyzer", protocol=MQTTv31)
 client.username_pw_set(username=credentials["username"], password=credentials["password"])
 client.on_connect = on_connect
 client.on_message = on_message
@@ -67,9 +67,10 @@ for q in qos[::-1]:
         time.sleep(1)
 
         # request QOS and Delay change
-        client.publish("request/qos", payload=q, qos=2)
-        time.sleep(0.5)
-        client.publish("request/delay", payload=int(interval * 1000), qos=2)
+        mi = client.publish("request/qos", payload=q, qos=2)
+        mi.wait_for_publish()
+        mi = client.publish("request/delay", payload=int(interval * 1000), qos=2)
+        mi.wait_for_publish()
         last_topic = f"counter/{q}/{int(interval * 1000)}"
 
         # collect data for 120s
@@ -83,4 +84,4 @@ client.unsubscribe("$SYS/#")
 client.loop_stop()
 df = pd.DataFrame(data, columns=['ts', 'topic', 'qos', 'payload'])
 print(df.loc[df['topic'].str.startswith('$SYS') == False,'topic'].value_counts())
-df.to_csv('stats_partner_broker.csv', index=False)
+df.to_csv('stats.csv', index=False)
